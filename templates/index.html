@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Object Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body {
+            height: 100%;
+        }
+        video {
+            border: 2px solid black;
+            display: block;
+        }
+        App-header {
+            background-color: #282c34;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: calc(10px + 2vmin);
+            color: white;
+            height: inherit;
+        }
+    </style>
+</head>
+<body>
+    <div class="text-center h-full">
+        <div class="App-header">
+            <video 
+                id="video"
+                width="840"
+                height="844"
+                autoplay
+                class="absolute m-auto left-0 right-0 top-0 bottom-0 z-[9]"
+            ></video>
+
+            <canvas
+                id="video-draw"
+                width="840"
+                height="844"
+                class="absolute z-[11] m-auto left-0 right-0 top-0 bottom-0"
+            ></canvas>
+        </div>
+    </div>
+    <script>
+        const video = document.getElementById('video');
+
+        // Get access to the camera
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                video.srcObject = stream;
+                video.play();
+            });
+        }
+
+        video.addEventListener('play', () => {
+            // const canvas = document.createElement('canvas');
+            const canvas = document.getElementById('video-draw')
+            const context = canvas.getContext('2d');
+            document.body.appendChild(canvas);
+            canvas.width = video.width;
+            canvas.height = video.height;
+
+            function detectFrame() {
+                // context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                fetch('/video_feed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: imageData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.boxes) {
+                        context.clearRect(0, 0, canvas.width, canvas.height);
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        data.boxes.forEach(box => {
+                            console.log(box.x1)
+                            context.beginPath();
+                            // context.rect(100, 100, 400, 400)
+                            context.rect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
+                            context.lineWidth = 2;
+                            context.strokeStyle = 'green';
+                            context.fillStyle = 'green';
+                            context.stroke();
+                            context.fillText(box.label, box.x1, box.y1 > 10 ? box.y1 - 5 : 10);
+                        });
+                    }
+                    requestAnimationFrame(detectFrame);
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    requestAnimationFrame(detectFrame);
+                });
+            }
+
+            detectFrame();
+        });
+    </script>
+</body>
+</html>
